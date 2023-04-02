@@ -15,7 +15,7 @@ DESTINATION_DIR = os.getenv('DESTINATION_DIR', '/download')
 
 # Set up logging
 logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 # Set up console handler to output log messages to console
 console_handler = logging.StreamHandler(sys.stdout)
