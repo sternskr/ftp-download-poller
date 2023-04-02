@@ -1,77 +1,73 @@
 import os
-import argparse
-import ftplib
+import sys
+from ftplib import FTP
+from concurrent.futures import ThreadPoolExecutor
 import schedule
 import time
-from dotenv import load_dotenv
 
-load_dotenv()
+# Set up default values for environment variables
+SERVER = os.getenv('FTP_SERVER', '')
+USERNAME = os.getenv('FTP_USERNAME', '')
+PASSWORD = os.getenv('FTP_PASSWORD', '')
+REMOTE_DIR = os.getenv('REMOTE_DIR', '/done')
+DESTINATION_DIR = os.getenv('DESTINATION_DIR', '/app/convert')
 
-# Set up argument parser
-parser = argparse.ArgumentParser(description='Poll an FTP server for files')
-parser.add_argument('--server', type=str, help='FTP server address')
-parser.add_argument('--username', type=str, help='FTP username')
-parser.add_argument('--password', type=str, help='FTP password')
-parser.add_argument('--remote-dir', type=str, help='FTP remote directory to poll')
-parser.add_argument('--destination-dir', type=str, help='Local directory to save downloaded files')
-args = parser.parse_args()
-
-# Set default values for command line arguments
-SERVER = args.server or os.getenv('SERVER')
-USERNAME = args.username or os.getenv('USERNAME')
-PASSWORD = args.password or os.getenv('PASSWORD')
-REMOTE_DIR = args.remote_dir or os.getenv('REMOTE_DIR')
-DESTINATION_DIR = args.destination_dir or os.getenv('DESTINATION_DIR')
-
-def clear_tmp_files():
-    # Remove any existing .tmp files
-    for filename in os.listdir(DESTINATION_DIR):
+# Define a function to remove any temporary files in the destination directory
+def remove_tmp_files(destination_dir):
+    for filename in os.listdir(destination_dir):
         if filename.endswith('.tmp'):
-            os.remove(os.path.join(DESTINATION_DIR, filename))
+            os.remove(os.path.join(destination_dir, filename))
 
-def create_ftp_connection():
-    # Set up FTP connection
-    ftp = ftplib.FTP(SERVER)
-    ftp.login(user=USERNAME, passwd=PASSWORD)
-    ftp.cwd(REMOTE_DIR)
-
-    return ftp
-
-def poll_ftp():
-    print('Polling FTP server...')
-    # Clear any existing .tmp files
-    clear_tmp_files()
-
-    # Create FTP connection
-    ftp = create_ftp_connection()
-
-    # Download all files in remote directory tree
-    ftp.recurse('', callback=download_file, arg=ftp)
-
-    # Close FTP connection
-    ftp.quit()
-
-    print('Done polling FTP server.')
-
-def download_file(ftp, filename):
-    print('Downloading ' + filename + '...')
-    # Download a single file from the FTP server
-    local_filename = os.path.join(DESTINATION_DIR, os.path.basename(filename))
-
-    with open(local_filename + '.tmp', 'wb') as f:
+# Define a function to download a single file from the FTP server
+def download_file(ftp, filename, local_filename):
+    with open(local_filename, 'wb') as f:
+        # Use FTP's retrbinary method to download the file and write it to a local file
         ftp.retrbinary('RETR ' + filename, f.write)
+    print(f"Downloaded {filename}")
 
-    os.rename(local_filename + '.tmp', local_filename)
-    print('Downloaded ' + filename)
+# Define a function to download a single file using a separate FTP connection
+def download_file_worker(server, username, password, remote_dir, file, destination_dir):
+    # Generate the local filename for the downloaded file
+    local_filename = os.path.join(destination_dir, os.path.basename(file))
+    # Connect to the FTP server and download the file using the download_file function
+    with FTP(server) as ftp:
+        ftp.login(user=username, passwd=password)
+        ftp.cwd(remote_dir)
+        download_file(ftp, file, local_filename + '.tmp')
 
-    # Delete file from FTP server after download
-    ftp.delete(filename)
-    print('Deleted ' + filename + ' from FTP server.')
+# Define the main function that downloads all files from the FTP server
+def download_files():
+    try:
+        # Connect to the FTP server and change to the remote directory
+        with FTP(SERVER) as ftp:
+            ftp.login(user=USERNAME, passwd=PASSWORD)
+            ftp.cwd(REMOTE_DIR)
+            # Get a list of all files in the remote directory
+            files = ftp.nlst()
+            # Remove any temporary files from the destination directory
+            remove_tmp_files(DESTINATION_DIR)
+            # Use a thread pool to download up to 5 files concurrently
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                for file in files:
+                    # Submit a download task to the thread pool for each file
+                    executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file, DESTINATION_DIR)
+            # Rename any temporary files to their final names once they have been downloaded completely
+            for file in files:
+                local_filename = os.path.join(DESTINATION_DIR, os.path.basename(file))
+                os.rename(local_filename + '.tmp', local_filename)
+            print("All files downloaded successfully")
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
-# Schedule the job to run every 30 minutes
-schedule.every(30).minutes.do(poll_ftp)
+# Run the download_files function once at the beginning
+if __name__ == '__main__':
+    download_files()
+    # Use the schedule library to run the download_files function every 30 minutes
+    schedule.every(30).minutes.do(download_files)
 
-# Run the job indefinitely
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+    while True:
+        # Check if any scheduled tasks are due to run, and run them if they are
+        schedule.run_pending()
+        # Wait for 1 second before checking again
+        time.sleep(1)
