@@ -6,6 +6,8 @@ ENV SERVER=ftp.example.com
 ENV USERNAME=username
 ENV PASSWORD=password
 ENV REMOTE_DIR=/remote/directory
+ENV DESTINATION_DIR=/download
+VOLUME /download
 
 WORKDIR /app
 
