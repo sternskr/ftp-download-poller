@@ -13,6 +13,7 @@ parser.add_argument('--server', type=str, help='FTP server address')
 parser.add_argument('--username', type=str, help='FTP username')
 parser.add_argument('--password', type=str, help='FTP password')
 parser.add_argument('--remote-dir', type=str, help='FTP remote directory to poll')
+parser.add_argument('--destination-dir', type=str, help='Local directory to save downloaded files')
 args = parser.parse_args()
 
 # Set default values for command line arguments
@@ -20,9 +21,7 @@ SERVER = args.server or os.getenv('SERVER')
 USERNAME = args.username or os.getenv('USERNAME')
 PASSWORD = args.password or os.getenv('PASSWORD')
 REMOTE_DIR = args.remote_dir or os.getenv('REMOTE_DIR')
-
-# Set up local destination directory for downloaded files
-DESTINATION_DIR = os.getenv('DESTINATION_DIR', '/app/convert')
+DESTINATION_DIR = args.destination_dir or os.getenv('DESTINATION_DIR')
 
 def clear_tmp_files():
     # Remove any existing .tmp files
@@ -57,12 +56,7 @@ def poll_ftp():
 def download_file(ftp, filename):
     print('Downloading ' + filename + '...')
     # Download a single file from the FTP server
-    local_filename = os.path.join(DESTINATION_DIR, os.path.relpath(filename, REMOTE_DIR))
-
-    # Create local directory if it doesn't exist
-    local_dirname = os.path.dirname(local_filename)
-    if not os.path.exists(local_dirname):
-        os.makedirs(local_dirname)
+    local_filename = os.path.join(DESTINATION_DIR, os.path.basename(filename))
 
     with open(local_filename + '.tmp', 'wb') as f:
         ftp.retrbinary('RETR ' + filename, f.write)
