@@ -27,8 +27,10 @@ def download_file(ftp, filename, local_filename):
 
 # Define a function to download a single file using a separate FTP connection
 def download_file_worker(server, username, password, remote_dir, file, destination_dir):
+    # Remove the REMOTE_DIR part of the path from the file name
+    file = file.replace(remote_dir, '', 1).lstrip('/')
     # Generate the local filename for the downloaded file
-    local_filename = os.path.join(destination_dir, os.path.basename(file))
+    local_filename = os.path.join(destination_dir, file)
     # Connect to the FTP server and download the file using the download_file function
     with FTP(server) as ftp:
         ftp.login(user=username, passwd=password)
