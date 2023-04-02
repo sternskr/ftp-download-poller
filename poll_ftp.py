@@ -1,64 +1,83 @@
-import argparse
 import os
+import argparse
+import ftplib
 import schedule
 import time
-from ftplib import FTP
+from dotenv import load_dotenv
 
-# Define arguments
-parser = argparse.ArgumentParser()
-parser.add_argument('server', type=str, help='FTP server')
-parser.add_argument('username', type=str, help='FTP username')
-parser.add_argument('password', type=str, help='FTP password')
-parser.add_argument('remote_dir', type=str, help='Remote directory')
+load_dotenv()
+
+# Set up argument parser
+parser = argparse.ArgumentParser(description='Poll an FTP server for files')
+parser.add_argument('--server', type=str, help='FTP server address')
+parser.add_argument('--username', type=str, help='FTP username')
+parser.add_argument('--password', type=str, help='FTP password')
+parser.add_argument('--remote-dir', type=str, help='FTP remote directory to poll')
 args = parser.parse_args()
 
-# Remove any .tmp files in the POLL_FTP_PATH directory at the start of the script
-for root, dirs, files in os.walk(os.getenv('POLL_FTP_PATH')):
-    for filename in files:
+# Set default values for command line arguments
+SERVER = args.server or os.getenv('SERVER')
+USERNAME = args.username or os.getenv('USERNAME')
+PASSWORD = args.password or os.getenv('PASSWORD')
+REMOTE_DIR = args.remote_dir or os.getenv('REMOTE_DIR')
+
+# Set up local destination directory for downloaded files
+DESTINATION_DIR = os.getenv('DESTINATION_DIR', '/app/convert')
+
+def clear_tmp_files():
+    # Remove any existing .tmp files
+    for filename in os.listdir(DESTINATION_DIR):
         if filename.endswith('.tmp'):
-            os.remove(os.path.join(root, filename))
+            os.remove(os.path.join(DESTINATION_DIR, filename))
+
+def create_ftp_connection():
+    # Set up FTP connection
+    ftp = ftplib.FTP(SERVER)
+    ftp.login(user=USERNAME, passwd=PASSWORD)
+    ftp.cwd(REMOTE_DIR)
+
+    return ftp
 
 def poll_ftp():
-    # Connect to FTP server
-    ftp = FTP(args.server)
-    ftp.login(user=args.username, passwd=args.password)
+    print('Polling FTP server...')
+    # Clear any existing .tmp files
+    clear_tmp_files()
 
-    # Change directory to remote directory
-    ftp.cwd(args.remote_dir)
+    # Create FTP connection
+    ftp = create_ftp_connection()
 
-    # Get list of files and folders in remote directory
-    file_list = []
-    ftp.retrlines('LIST', file_list.append)
-
-    # Loop through files and folders in remote directory
-    for item in file_list:
-        tokens = item.split()
-        filename = tokens[-1]
-        if tokens[0].startswith('d'):  # it is a directory
-            if not os.path.exists(os.path.join(os.getenv('POLL_FTP_PATH'), filename)):
-                os.makedirs(os.path.join(os.getenv('POLL_FTP_PATH'), filename))
-        else:  # it is a file
-            local_dir = os.path.join(os.getenv('POLL_FTP_PATH'), tokens[-2])  # create the same folder structure locally
-            if not os.path.exists(local_dir):
-                os.makedirs(local_dir)
-            local_file = os.path.join(local_dir, filename + '.tmp')  # temporary filename
-            try:
-                with open(local_file, 'wb') as f:
-                    ftp.retrbinary('RETR ' + filename, f.write)
-                os.rename(local_file, os.path.join(local_dir, filename))  # rename the file to its final name
-                ftp.delete(filename)  # delete the file from the remote directory
-            except Exception as e:
-                print(f"Error downloading file {filename}: {e}")
-                if os.path.exists(local_file):
-                    os.remove(local_file)  # delete the temporary file
+    # Download all files in remote directory tree
+    ftp.recurse('', callback=download_file, arg=ftp)
 
     # Close FTP connection
     ftp.quit()
 
+    print('Done polling FTP server.')
+
+def download_file(ftp, filename):
+    print('Downloading ' + filename + '...')
+    # Download a single file from the FTP server
+    local_filename = os.path.join(DESTINATION_DIR, os.path.relpath(filename, REMOTE_DIR))
+
+    # Create local directory if it doesn't exist
+    local_dirname = os.path.dirname(local_filename)
+    if not os.path.exists(local_dirname):
+        os.makedirs(local_dirname)
+
+    with open(local_filename + '.tmp', 'wb') as f:
+        ftp.retrbinary('RETR ' + filename, f.write)
+
+    os.rename(local_filename + '.tmp', local_filename)
+    print('Downloaded ' + filename)
+
+    # Delete file from FTP server after download
+    ftp.delete(filename)
+    print('Deleted ' + filename + ' from FTP server.')
+
 # Schedule the job to run every 30 minutes
 schedule.every(30).minutes.do(poll_ftp)
 
-# Keep the script running continuously
+# Run the job indefinitely
 while True:
     schedule.run_pending()
     time.sleep(1)
