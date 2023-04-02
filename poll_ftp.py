@@ -10,8 +10,8 @@ import logging
 SERVER = os.getenv('FTP_SERVER', '')
 USERNAME = os.getenv('FTP_USERNAME', '')
 PASSWORD = os.getenv('FTP_PASSWORD', '')
-REMOTE_DIR = os.getenv('REMOTE_DIR', '/done')
-DESTINATION_DIR = os.getenv('DESTINATION_DIR', '/app/convert')
+REMOTE_DIR = os.getenv('REMOTE_DIR', '/remote')
+DESTINATION_DIR = os.getenv('DESTINATION_DIR', '/download')
 
 # Set up logging
 logger = logging.getLogger()
