@@ -51,14 +51,13 @@ def cleanup_empty_dir_helper(sftp, clean_dir, stop_dir):
     """
     files = sftp.listdir(clean_dir)
     for file in files:
-            filepath = os.path.join(clean_dir, file)
-            if sftp.stat(filepath).st_mode & stat.S_IFDIR:
-                cleanup_empty_dir_helper(sftp, filepath, stop_dir)
-    else:
-        if len(files) == 0 and clean_dir != stop_dir:
-            sftp.rmdir(clean_dir)
-            logger.info(f"Deleted remote directory: {clean_dir}")
-                
+        filepath = os.path.join(clean_dir, file)
+        logging.info(f"Checking if directory is empty: {filepath}")
+        if sftp.stat(filepath).st_mode & stat.S_IFDIR:
+            cleanup_empty_dir_helper(sftp, filepath, stop_dir)
+    if clean_dir != stop_dir and not sftp.listdir(clean_dir):
+        sftp.rmdir(clean_dir)
+        logger.info(f"Deleted remote directory: {clean_dir}")
                 
 #recursively deletes all empty directories
 def cleanup_empty_directories(sftp, clean_dir):
