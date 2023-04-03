@@ -44,8 +44,8 @@ def create_destination_dir(destination_dir, worker_name):
         os.chmod(destination_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
         logger.info(f"{worker_name} Created destination directory: {destination_dir}")
 
-#recursively deletes all empty directories
-def cleanup_empty_directories(sftp, clean_dir, stop_dir):
+#recursively deletes all empty directories stopping at the given dir
+def cleanup_empty_dir_helper(sftp, clean_dir, stop_dir):
     """
     Recursively check if a directory is empty and delete it if it is.
     """
@@ -57,7 +57,21 @@ def cleanup_empty_directories(sftp, clean_dir, stop_dir):
         for file in files:
             filepath = os.path.join(clean_dir, file)
             if sftp.stat(filepath).st_mode & stat.S_IFDIR:
-                cleanup_empty_directories(sftp, filepath, stop_dir)
+                cleanup_empty_dir_helper(sftp, filepath, stop_dir)
+                
+                
+#recursively deletes all empty directories
+def cleanup_empty_directories(sftp, clean_dir):
+    """
+    Kicks off the first helper to look through everything
+    """
+    files = sftp.listdir(clean_dir)
+    for file in files:
+        filepath = os.path.join(clean_dir, file)
+        if sftp.stat(filepath).st_mode & stat.S_IFDIR:
+            cleanup_empty_dir_helper(sftp, filepath, clean_dir)
+
+
 
 # Define a function to remove any temporary files in the destination directory
 def remove_tmp_files(destination_dir):
@@ -150,7 +164,7 @@ def download_files():
                 logger.info("All files downloaded successfully")
                 
                 logger.info("Cleaning any leftover empty dirs...")
-                cleanup_empty_directories(sftp, REMOTE_DIR, REMOTE_DIR)
+                cleanup_empty_directories(sftp, REMOTE_DIR)
                 logger.info("Done")
             except Exception as e:
                 logger.error(f"Error: {e}")
