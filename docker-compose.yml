@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   poll_ftp:
-    image: ftp-download-poller:latest
+    image: sternskr/ftp-download-poller:latest
     container_name: poll_ftp
     environment:
       - FTP_SERVER=ftp.example.com
@@ -11,6 +11,3 @@ services:
       - FTP_DIR=/remote/directory
     volumes:
       - /your/local/download/path:/download
-    build:
-      context: .
-      dockerfile: Dockerfile
