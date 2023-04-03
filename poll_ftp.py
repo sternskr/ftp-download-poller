@@ -1,10 +1,10 @@
 import os
 import sys
-from ftplib import FTP
 from concurrent.futures import ThreadPoolExecutor
 import schedule
 import time
 import logging
+import paramiki
 
 # Set up default values for environment variables
 SERVER = os.getenv('FTP_SERVER', '')
@@ -31,41 +31,43 @@ def remove_tmp_files(destination_dir):
             os.remove(os.path.join(destination_dir, filename))
             logger.info(f"Removed {filename}")
 
-# Define a function to download a single file from the FTP server
-def download_file(ftp, filename, local_filename):
+# Define a function to download a single file from the SFTP server
+def download_file(sftp, filename, local_filename):
     logger.info(f"Downloading {filename}...")
     with open(local_filename, 'wb') as f:
-        # Use FTP's retrbinary method to download the file and write it to a local file
-        ftp.retrbinary('RETR ' + filename, f.write)
+        # Use SFTP's get method to download the file and write it to a local file
+        sftp.get(filename, f)
     logger.info(f"Downloaded {filename}")
 
-# Define a function to download a single file using a separate FTP connection
+# Define a function to download a single file using a separate SFTP connection
 def download_file_worker(server, username, password, remote_dir, file, destination_dir):
     # Remove the REMOTE_DIR part of the path from the file name
     file = file.replace(remote_dir, '', 1).lstrip('/')
     # Generate the local filename for the downloaded file
     local_filename = os.path.join(destination_dir, file)
-    # Connect to the FTP server and download the file using the download_file function
-    with FTP(server) as ftp:
+    # Connect to the SFTP server and download the file using the download_file function
+    with paramiko.Transport((server, 22)) as transport:
         try:
-            ftp.login(user=username, passwd=password)
-            ftp.cwd(remote_dir)
-            download_file(ftp, file, local_filename + '.tmp')
+            transport.connect(username=username, password=password)
+            sftp = paramiko.SFTPClient.from_transport(transport)
+            sftp.chdir(remote_dir)
+            download_file(sftp, file, local_filename + '.tmp')
         except Exception as e:
             logger.error(f"Error downloading {file}: {e}")
 
 # Define the main function that downloads all files from the FTP server
 def download_files():
     try:
-        logger.info("Connecting to FTP server...")
-        # Connect to the FTP server and change to the remote directory
-        with FTP(SERVER) as ftp:
+        logger.info("Connecting to SFTP server...")
+        # Connect to the SFTP server and change to the remote directory
+        with paramiko.Transport((SERVER, 22)) as transport:
             try:
-                ftp.login(user=USERNAME, passwd=PASSWORD)
-                ftp.cwd(REMOTE_DIR)
+                transport.connect(username=USERNAME, password=PASSWORD)
+                sftp = paramiko.SFTPClient.from_transport(transport)
+                sftp.chdir(REMOTE_DIR)
                 # Get a list of all files in the remote directory
-                files = ftp.nlst()
-                logger.info(f"Found {len(files)} files on the FTP server.")
+                files = sftp.listdir()
+                logger.info(f"Found {len(files)} files on the SFTP server.")
                 # Remove any temporary files from the destination directory
                 remove_tmp_files(DESTINATION_DIR)
                 # Use a thread pool to download up to 5 files concurrently
@@ -84,6 +86,7 @@ def download_files():
     except Exception as e:
         logger.error(f"Error: {e}")
         sys.exit(1)
+
         
 # Run the download_files function once at the beginning
 if __name__ == '__main__':
