@@ -59,7 +59,7 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
 # Define the main function that downloads all files from the FTP server
 def download_files():
     try:
-        logger.info("Connecting to SFTP server...")
+        logger.info(f"Connecting to SFTP server {SERVER} with username {USERNAME}...")
         # Connect to the SFTP server and change to the remote directory
         with paramiko.Transport((SERVER, 22)) as transport:
             try:
@@ -70,6 +70,8 @@ def download_files():
                 # Get a list of all files in the remote directory
                 files = sftp.listdir()
                 logger.info(f"Found {len(files)} files on the SFTP server.")
+                logger.info(f"Remote directory: {REMOTE_DIR}")
+                logger.info(f"Destination directory: {DESTINATION_DIR}")
                 # Remove any temporary files from the destination directory
                 remove_tmp_files(DESTINATION_DIR)
                 # Use a thread pool to download up to 5 files concurrently
@@ -88,6 +90,7 @@ def download_files():
     except Exception as e:
         logger.error(f"Error: {e}")
         sys.exit(1)
+
 
         
 # Run the download_files function once at the beginning
