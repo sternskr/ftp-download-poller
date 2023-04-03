@@ -50,19 +50,16 @@ def cleanup_empty_dir_helper(sftp, clean_dir, stop_dir):
     Recursively check if a directory is empty and delete it if it is.
     """
     files = sftp.listdir(clean_dir)
-    if len(files) == 0 and clean_dir != stop_dir:
-        sftp.rmdir(clean_dir)
-        logger.info(f"Deleted remote directory: {clean_dir}")
-    else:
-        for file in files:
+    for file in files:
             filepath = os.path.join(clean_dir, file)
             if sftp.stat(filepath).st_mode & stat.S_IFDIR:
                 cleanup_empty_dir_helper(sftp, filepath, stop_dir)
-        # After all subdirectories have been checked, check again if the current directory is empty
-        files = sftp.listdir(clean_dir)
+    else:
         if len(files) == 0 and clean_dir != stop_dir:
             sftp.rmdir(clean_dir)
             logger.info(f"Deleted remote directory: {clean_dir}")
+            # After all subdirectories have been checked, check again if the current directory is empty
+            files = sftp.listdir(clean_dir)
                 
                 
 #recursively deletes all empty directories
@@ -70,21 +67,7 @@ def cleanup_empty_directories(sftp, clean_dir):
     """
     Recursively delete all empty directories in a given directory on the SFTP server
     """
-    for filename in sftp.listdir(clean_dir):
-        filepath = os.path.join(clean_dir, filename)
-        mode = sftp.stat(filepath).st_mode
-        if stat.S_ISDIR(mode):
-            # Recursively clean subdirectories
-            cleanup_empty_dir_helper(sftp, filepath, clean_dir)
-            # Remove empty directory
-            try:
-                sftp.rmdir(filepath)
-                logger.info(f"Deleted remote directory: {filepath}")
-            except Exception as e:
-                logger.warning(f"Error deleting remote directory: {filepath}. {e}")
-        elif stat.S_ISREG(mode):
-            # Do nothing for regular files
-            pass
+    cleanup_empty_dir_helper(sftp, clean_dir, clean_dir)
 
 # Define a function to remove any temporary files in the destination directory
 def remove_tmp_files(destination_dir):
