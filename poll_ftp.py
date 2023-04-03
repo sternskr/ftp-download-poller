@@ -35,6 +35,8 @@ logger.info(f"DESTINATION_DIR: {DESTINATION_DIR}")
 def create_destination_dir(destination_dir, worker_name):
     if not os.path.exists(destination_dir):
         os.makedirs(destination_dir)
+        #make deletable
+        os.chmod(destination_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
         logger.info(f"{worker_name} Created destination directory: {destination_dir}")
 
 # Define a function to remove any temporary files in the destination directory
@@ -65,6 +67,8 @@ def download_file(sftp, filename, local_filename, worker_name):
     logger.info(f"{worker_name}: Downloading {filename}...")
     # Use SFTP's get method to download the file and write it to a local file
     sftp.get(filename, local_filename)
+    #make deletable
+    os.chmod(local_filename, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
     logger.info(f"{worker_name}: Downloaded {filename}")
 
 # Define a function to download a single file using a separate SFTP connection
