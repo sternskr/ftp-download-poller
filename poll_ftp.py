@@ -40,9 +40,8 @@ def remove_tmp_files(destination_dir):
 # Define a function to download a single file from the SFTP server
 def download_file(sftp, filename, local_filename):
     logger.info(f"Downloading {filename}...")
-    with open(local_filename, 'wb') as f:
-        # Use SFTP's get method to download the file and write it to a local file
-        sftp.get(filename, f)
+    # Use SFTP's get method to download the file and write it to a local file
+    sftp.get(filename, local_filename)
     logger.info(f"Downloaded {filename}")
 
 # Define a function to download a single file using a separate SFTP connection
