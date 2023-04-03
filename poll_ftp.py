@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import schedule
 import time
 import logging
-import paramiki
+import paramiko
 
 # Set up default values for environment variables
 SERVER = os.getenv('FTP_SERVER', '')
