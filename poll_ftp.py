@@ -40,19 +40,14 @@ def create_destination_dir(destination_dir, worker_name):
         logger.info(f"{worker_name} Created destination directory: {destination_dir}")
 
 #removes any empty directories at the given path & sftp
-def cleanup_empty_directories(sftp, remote_dir):
+def cleanup_dir_if_empty(sftp, remote_dir):
     """
-    Recursively check if a directory is empty and delete it if it is.
+    Check if a directory is empty and delete it if it is.
     """
     files = sftp.listdir(remote_dir)
     if len(files) == 0:
         sftp.rmdir(remote_dir)
         logger.info(f"Deleted remote directory: {remote_dir}")
-    else:
-        for file in files:
-            filepath = os.path.join(remote_dir, file)
-            if sftp.stat(filepath).st_mode & stat.S_IFDIR:
-                cleanup_empty_directories(sftp, filepath)
 
 # Define a function to remove any temporary files in the destination directory
 def remove_tmp_files(destination_dir):
@@ -108,6 +103,10 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
             logger.info(f"{worker_name}: Renamed {local_filename + '.tmp'} to {local_filename}")
             sftp.remove(file)  # Delete the file on the server after downloading
             logger.info(f"{worker_name}: Deleted {file} from the server")
+            
+            # Clean up parent dir if it's empty now
+            logger.info(f"Task {worker_name}: Cleaning up empty directories in {remote_dir}...")
+            cleanup_dir_if_empty(sftp, remote_dir)
         except Exception as e:
             logger.error(f"{worker_name}: Error downloading {file}: {e}")
 
@@ -143,9 +142,6 @@ def download_files():
                             # Submit a download task to the thread pool for each file, passing the UUID as an argument
                             executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file.filename, DESTINATION_DIR, worker_name)
                 logger.info("All files downloaded successfully")
-                
-                logger.info("Cleaning any leftover empty dirs...")
-                cleanup_empty_directories(sftp, REMOTE_DIR)
             except Exception as e:
                 logger.error(f"Error: {e}")
     except Exception as e:
