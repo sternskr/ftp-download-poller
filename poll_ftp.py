@@ -35,9 +35,15 @@ logger.info(f"DESTINATION_DIR: {DESTINATION_DIR}")
 def create_destination_dir(destination_dir, worker_name):
     if not os.path.exists(destination_dir):
         os.makedirs(destination_dir)
-        #make deletable
+        # Set permissions on all parent directories
+        parent_dir = os.path.dirname(destination_dir)
+        while parent_dir != '/':
+            os.chmod(parent_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+            parent_dir = os.path.dirname(parent_dir)
+        # Set permissions on the destination directory
         os.chmod(destination_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
         logger.info(f"{worker_name} Created destination directory: {destination_dir}")
+
 
 #removes any empty directories at the given path & sftp
 def cleanup_empty_directories(sftp, remote_dir):
