@@ -52,7 +52,7 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
             ftp.cwd(remote_dir)
             download_file(ftp, file, local_filename + '.tmp')
         except Exception as e:
-            logger.error(f"Error downloading {filename}: {e}")
+            logger.error(f"Error downloading {file}: {e}")
 
 # Define the main function that downloads all files from the FTP server
 def download_files():
