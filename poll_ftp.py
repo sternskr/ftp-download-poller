@@ -83,22 +83,12 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
             sftp = paramiko.SFTPClient.from_transport(transport)
             sftp.chdir(remote_dir)
             download_file(sftp, file, local_filename + '.tmp', task_uuid)
+            os.rename(local_filename + '.tmp', local_filename)
+            logger.info(f"Task {task_uuid}: Renamed {local_filename + '.tmp'} to {local_filename}")
             sftp.remove(file)  # Delete the file on the server after downloading
             logger.info(f"Task {task_uuid}: Deleted {file} from the server")
         except Exception as e:
             logger.error(f"Task {task_uuid}: Error downloading {file}: {e}")
-
-    # Connect to the SFTP server and download the file using the download_file function
-    with paramiko.Transport((server, 22)) as transport:
-        try:
-            transport.connect(username=username, password=password)
-            sftp = paramiko.SFTPClient.from_transport(transport)
-            sftp.chdir(remote_dir)
-            download_file(sftp, file, local_filename + '.tmp', task_uuid)
-            sftp.remove(file)  # Delete the file on the server after downloading
-            logger.info(f"Deleted {file} from the server")
-        except Exception as e:
-            logger.error(f"Error downloading {file}: {e}")
 
 # Define the main function that downloads all files from the FTP server
 def download_files():
@@ -131,12 +121,6 @@ def download_files():
                             task_uuid = str(uuid.uuid4())
                             # Submit a download task to the thread pool for each file, passing the UUID as an argument
                             executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file.filename, DESTINATION_DIR, task_uuid)
-                # Rename any temporary files to their final names once they have been downloaded completely
-                for file in files:
-                    if not file.st_mode & stat.S_IFDIR:
-                        local_filename = os.path.join(DESTINATION_DIR, os.path.basename(file.filename))
-                        os.rename(local_filename + '.tmp', local_filename)
-                        logger.info(f"Renamed {local_filename + '.tmp'} to {local_filename}")
                 logger.info("All files downloaded successfully")
             except Exception as e:
                 logger.error(f"Error: {e}")
