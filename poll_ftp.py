@@ -58,8 +58,6 @@ def cleanup_empty_dir_helper(sftp, clean_dir, stop_dir):
         if len(files) == 0 and clean_dir != stop_dir:
             sftp.rmdir(clean_dir)
             logger.info(f"Deleted remote directory: {clean_dir}")
-            # After all subdirectories have been checked, check again if the current directory is empty
-            files = sftp.listdir(clean_dir)
                 
                 
 #recursively deletes all empty directories
