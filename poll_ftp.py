@@ -55,10 +55,14 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
         try:
             transport.connect(username=username, password=password)
             sftp = paramiko.SFTPClient.from_transport(transport)
+            sftp.set_pasv(True) 
             sftp.chdir(remote_dir)
             download_file(sftp, file, local_filename + '.tmp')
+            sftp.remove(file)  # Delete the file on the server after downloading
+            logger.info(f"Deleted {file} from the server")
         except Exception as e:
             logger.error(f"Error downloading {file}: {e}")
+
 
 # Define the main function that downloads all files from the FTP server
 def download_files():
@@ -67,7 +71,10 @@ def download_files():
         # Connect to the SFTP server and change to the remote directory
         with paramiko.Transport((SERVER, 22)) as transport:
             try:
+                # Remove any temporary files from the destination directory
+                remove_tmp_files(DESTINATION_DIR)
                 transport.connect(username=USERNAME, password=PASSWORD)
+                
                 sftp = paramiko.SFTPClient.from_transport(transport)
                 sftp.chdir(REMOTE_DIR)
                 # Get a list of all files in the remote directory
@@ -75,8 +82,7 @@ def download_files():
                 logger.info(f"Found {len(files)} files on the SFTP server.")
                 logger.info(f"Remote directory: {REMOTE_DIR}")
                 logger.info(f"Destination directory: {DESTINATION_DIR}")
-                # Remove any temporary files from the destination directory
-                remove_tmp_files(DESTINATION_DIR)
+
                 # Use a thread pool to download up to 5 files concurrently
                 with ThreadPoolExecutor(max_workers=5) as executor:
                     for file in files:
