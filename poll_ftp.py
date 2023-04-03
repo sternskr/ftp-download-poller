@@ -51,15 +51,18 @@ def cleanup_empty_directories(sftp, remote_dir):
     Recursively check if a directory is empty and delete it if it is.
     """
     files = sftp.listdir(remote_dir)
-    non_hidden_files = [f for f in files if not f.startswith('.')]
-    if len(non_hidden_files) == 0:
+    for file in files:
+        filepath = os.path.join(remote_dir, file)
+        if sftp.stat(filepath).st_mode & stat.S_IFDIR:
+            # Recursively check if this directory is empty
+            cleanup_empty_directories(sftp, filepath)
+
+    # Check if the current directory is empty and delete it if it is
+    files = sftp.listdir(remote_dir)
+    if len(files) == 0:
         sftp.rmdir(remote_dir)
         logger.info(f"Deleted remote directory: {remote_dir}")
-    else:
-        for file in non_hidden_files:
-            filepath = os.path.join(remote_dir, file)
-            if sftp.stat(filepath).st_mode & stat.S_IFDIR:
-                cleanup_empty_directories(sftp, filepath)
+
 
 # Define a function to remove any temporary files in the destination directory
 def remove_tmp_files(destination_dir):
@@ -153,6 +156,7 @@ def download_files():
                 
                 logger.info("Cleaning any leftover empty dirs...")
                 cleanup_empty_directories(sftp, REMOTE_DIR)
+                logger.info("Done")
             except Exception as e:
                 logger.error(f"Error: {e}")
     except Exception as e:
