@@ -1,6 +1,8 @@
 # Set default environment variables
 FROM python:3
 
+EXPOSE 22
+
 ENV SERVER=ftp.example.com
 ENV USERNAME=username
 ENV PASSWORD=password
