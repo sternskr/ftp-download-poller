@@ -13,6 +13,12 @@ PASSWORD = os.getenv('FTP_PASSWORD', '')
 REMOTE_DIR = os.getenv('REMOTE_DIR', '/remote')
 DESTINATION_DIR = os.getenv('DESTINATION_DIR', '/download')
 
+print(f"SERVER: {SERVER}")
+print(f"USERNAME: {USERNAME}")
+print(f"PASSWORD: {PASSWORD}")
+print(f"REMOTE_DIR: {REMOTE_DIR}")
+print(f"DESTINATION_DIR: {DESTINATION_DIR}")
+
 # Set up logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
