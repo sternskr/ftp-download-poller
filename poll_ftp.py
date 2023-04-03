@@ -44,6 +44,19 @@ def remove_tmp_files(destination_dir):
         if filename.endswith('.tmp'):
             os.remove(os.path.join(destination_dir, filename))
             logger.info(f"Removed {filename}")
+            
+# Define a recursive function to list all files and directories in the given remote directory and its subdirectories
+def list_files_recursive(sftp, remote_dir):
+    files = []
+    for file in sftp.listdir_attr(remote_dir):
+        if file.st_mode & stat.S_IFDIR:
+            # If the item is a directory, call this function recursively with the directory path
+            files += list_files_recursive(sftp, os.path.join(remote_dir, file.filename))
+        else:
+            # If the item is a file, add it to the list
+            file.filename = os.path.join(remote_dir, file.filename)
+            files.append(file)
+    return files
 
 # Define a function to download a single file from the SFTP server
 def download_file(sftp, filename, local_filename, task_uuid):
@@ -55,9 +68,9 @@ def download_file(sftp, filename, local_filename, task_uuid):
 # Define a function to download a single file using a separate SFTP connection
 def download_file_worker(server, username, password, remote_dir, file, destination_dir, task_uuid):
     # Remove the REMOTE_DIR part of the path from the file name
-    file = file.replace(remote_dir, '', 1).lstrip('/')
+    file_tmp = file.replace(remote_dir, '', 1).lstrip('/')
     # Generate the local filename for the downloaded file
-    local_filename = os.path.join(destination_dir, file)
+    local_filename = os.path.join(destination_dir, file_tmp)
 
     # Create necessary directories for the file
     local_file_directory = os.path.dirname(local_filename)
@@ -102,7 +115,7 @@ def download_files():
                 sftp = paramiko.SFTPClient.from_transport(transport)
                 sftp.chdir(REMOTE_DIR)
                 # Get a list of all files and directories in the remote directory
-                files = sftp.listdir_attr()
+                files = list_files_recursive(sftp, REMOTE_DIR)
                 logger.info(f"Found {len(files)} files and directories on the SFTP server:")
                 for file in files:
                     logger.info(f"- {file.filename} ({stat.filemode(file.st_mode)})")
