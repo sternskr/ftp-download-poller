@@ -10,14 +10,8 @@ import paramiko
 SERVER = os.getenv('FTP_SERVER', '')
 USERNAME = os.getenv('FTP_USERNAME', '')
 PASSWORD = os.getenv('FTP_PASSWORD', '')
-REMOTE_DIR = os.getenv('REMOTE_DIR', '/remote')
-DESTINATION_DIR = os.getenv('DESTINATION_DIR', '/download')
-
-print(f"SERVER: {SERVER}")
-print(f"USERNAME: {USERNAME}")
-print(f"PASSWORD: {PASSWORD}")
-print(f"REMOTE_DIR: {REMOTE_DIR}")
-print(f"DESTINATION_DIR: {DESTINATION_DIR}")
+REMOTE_DIR = os.getenv('FTP_DIR', '/remote')
+DESTINATION_DIR = '/download'
 
 # Set up logging
 logger = logging.getLogger()
@@ -28,6 +22,12 @@ console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
 logger.addHandler(console_handler)
+
+logger.info(f"SERVER: {SERVER}")
+logger.info(f"USERNAME: {USERNAME}")
+logger.info(f"PASSWORD: {PASSWORD}")
+logger.info(f"REMOTE_DIR: {REMOTE_DIR}")
+logger.info(f"DESTINATION_DIR: {DESTINATION_DIR}")
 
 # Define a function to remove any temporary files in the destination directory
 def remove_tmp_files(destination_dir):
