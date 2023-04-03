@@ -6,6 +6,7 @@ import time
 import logging
 import paramiko
 import uuid
+import stat
 
 # Set up default values for environment variables
 SERVER = os.getenv('FTP_SERVER', '')
@@ -110,14 +111,14 @@ def download_files():
                 with ThreadPoolExecutor(max_workers=5) as executor:
                     for file in files:
                         # Check if the item in the list is a file or a directory
-                        if not file.st_mode & paramiko.S_IFDIR:
+                        if not file.st_mode & stat.S_IFDIR:
                             # Generate a UUID for each file download task
                             task_uuid = str(uuid.uuid4())
                             # Submit a download task to the thread pool for each file, passing the UUID as an argument
                             executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file.filename, DESTINATION_DIR, task_uuid)
                 # Rename any temporary files to their final names once they have been downloaded completely
                 for file in files:
-                    if not file.st_mode & paramiko.S_IFDIR:
+                    if not file.st_mode & stat.S_IFDIR:
                         local_filename = os.path.join(DESTINATION_DIR, os.path.basename(file.filename))
                         os.rename(local_filename + '.tmp', local_filename)
                         logger.info(f"Renamed {local_filename + '.tmp'} to {local_filename}")
