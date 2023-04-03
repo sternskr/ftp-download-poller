@@ -150,7 +150,7 @@ def download_files():
                 logger.info("All files downloaded successfully")
                 
                 logger.info("Cleaning any leftover empty dirs...")
-                cleanup_empty_directories(sftp, REMOTE_DIR)
+                cleanup_empty_directories(sftp, REMOTE_DIR, REMOTE_DIR)
                 logger.info("Done")
             except Exception as e:
                 logger.error(f"Error: {e}")
