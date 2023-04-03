@@ -29,6 +29,12 @@ logger.info(f"PASSWORD: {PASSWORD}")
 logger.info(f"REMOTE_DIR: {REMOTE_DIR}")
 logger.info(f"DESTINATION_DIR: {DESTINATION_DIR}")
 
+#Create the dir if it doesn't exist already
+def create_destination_dir(destination_dir):
+    if not os.path.exists(destination_dir):
+        os.makedirs(destination_dir)
+        logger.info(f"Created destination directory: {destination_dir}")
+
 # Define a function to remove any temporary files in the destination directory
 def remove_tmp_files(destination_dir):
     logger.info("Removing temporary files...")
@@ -50,12 +56,16 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
     file = file.replace(remote_dir, '', 1).lstrip('/')
     # Generate the local filename for the downloaded file
     local_filename = os.path.join(destination_dir, file)
+
+    # Create necessary directories for the file
+    local_file_directory = os.path.dirname(local_filename)
+    create_destination_dir(local_file_directory)
+
     # Connect to the SFTP server and download the file using the download_file function
     with paramiko.Transport((server, 22)) as transport:
         try:
             transport.connect(username=username, password=password)
             sftp = paramiko.SFTPClient.from_transport(transport)
-            sftp.set_pasv(True) 
             sftp.chdir(remote_dir)
             download_file(sftp, file, local_filename + '.tmp')
             sftp.remove(file)  # Delete the file on the server after downloading
@@ -64,9 +74,11 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
             logger.error(f"Error downloading {file}: {e}")
 
 
+
 # Define the main function that downloads all files from the FTP server
 def download_files():
     try:
+        create_destination_dir(DESTINATION_DIR)
         logger.info(f"Connecting to SFTP server {SERVER} with username {USERNAME}...")
         # Connect to the SFTP server and change to the remote directory
         with paramiko.Transport((SERVER, 22)) as transport:
