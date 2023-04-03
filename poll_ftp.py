@@ -56,7 +56,6 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
         try:
             transport.connect(username=username, password=password)
             sftp = paramiko.SFTPClient.from_transport(transport)
-            sftp.set_pasv(True) 
             sftp.chdir(remote_dir)
             download_file(sftp, file, local_filename + '.tmp')
         except Exception as e:
@@ -71,7 +70,6 @@ def download_files():
             try:
                 transport.connect(username=USERNAME, password=PASSWORD)
                 sftp = paramiko.SFTPClient.from_transport(transport)
-                sftp.set_pasv(True)
                 sftp.chdir(REMOTE_DIR)
                 # Get a list of all files in the remote directory
                 files = sftp.listdir()
