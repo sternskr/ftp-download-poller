@@ -44,25 +44,20 @@ def create_destination_dir(destination_dir, worker_name):
         os.chmod(destination_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
         logger.info(f"{worker_name} Created destination directory: {destination_dir}")
 
-
-#removes any empty directories at the given path & sftp
-def cleanup_empty_directories(sftp, remote_dir):
+#recursively deletes all empty directories
+def cleanup_empty_directories(sftp, clean_dir, stop_dir):
     """
     Recursively check if a directory is empty and delete it if it is.
     """
-    files = sftp.listdir(remote_dir)
-    for file in files:
-        filepath = os.path.join(remote_dir, file)
-        if sftp.stat(filepath).st_mode & stat.S_IFDIR:
-            # Recursively check if this directory is empty
-            cleanup_empty_directories(sftp, filepath)
-
-    # Check if the current directory is empty and delete it if it is
-    files = sftp.listdir(remote_dir)
-    if len(files) == 0:
-        sftp.rmdir(remote_dir)
-        logger.info(f"Deleted remote directory: {remote_dir}")
-
+    files = sftp.listdir(clean_dir)
+    if len(files) == 0 and clean_dir != stop_dir:
+        sftp.rmdir(clean_dir)
+        logger.info(f"Deleted remote directory: {clean_dir}")
+    else:
+        for file in files:
+            filepath = os.path.join(clean_dir, file)
+            if sftp.stat(filepath).st_mode & stat.S_IFDIR:
+                cleanup_empty_directories(sftp, filepath, stop_dir)
 
 # Define a function to remove any temporary files in the destination directory
 def remove_tmp_files(destination_dir):
