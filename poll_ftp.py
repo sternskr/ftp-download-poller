@@ -80,7 +80,7 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
             transport.connect(username=username, password=password)
             sftp = paramiko.SFTPClient.from_transport(transport)
             sftp.chdir(remote_dir)
-            download_file(sftp, file, local_filename + '.tmp')
+            download_file(sftp, file, local_filename + '.tmp', task_uuid)
             sftp.remove(file)  # Delete the file on the server after downloading
             logger.info(f"Deleted {file} from the server")
         except Exception as e:
@@ -100,8 +100,8 @@ def download_files():
                 
                 sftp = paramiko.SFTPClient.from_transport(transport)
                 sftp.chdir(REMOTE_DIR)
-                # Get a list of all files in the remote directory
-                files = sftp.listdir()
+                # Get a list of all files and directories in the remote directory
+                files = sftp.listdir_attr()
                 logger.info(f"Found {len(files)} files on the SFTP server.")
                 logger.info(f"Remote directory: {REMOTE_DIR}")
                 logger.info(f"Destination directory: {DESTINATION_DIR}")
@@ -109,21 +109,25 @@ def download_files():
                 # Use a thread pool to download up to 5 files concurrently
                 with ThreadPoolExecutor(max_workers=5) as executor:
                     for file in files:
-                        # Generate a UUID for each file download task
-                        task_uuid = str(uuid.uuid4())
-                        # Submit a download task to the thread pool for each file, passing the UUID as an argument
-                        executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file, DESTINATION_DIR, task_uuid)
+                        # Check if the item in the list is a file or a directory
+                        if not file.st_mode & paramiko.S_IFDIR:
+                            # Generate a UUID for each file download task
+                            task_uuid = str(uuid.uuid4())
+                            # Submit a download task to the thread pool for each file, passing the UUID as an argument
+                            executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file.filename, DESTINATION_DIR, task_uuid)
                 # Rename any temporary files to their final names once they have been downloaded completely
                 for file in files:
-                    local_filename = os.path.join(DESTINATION_DIR, os.path.basename(file))
-                    os.rename(local_filename + '.tmp', local_filename)
-                    logger.info(f"Renamed {local_filename + '.tmp'} to {local_filename}")
+                    if not file.st_mode & paramiko.S_IFDIR:
+                        local_filename = os.path.join(DESTINATION_DIR, os.path.basename(file.filename))
+                        os.rename(local_filename + '.tmp', local_filename)
+                        logger.info(f"Renamed {local_filename + '.tmp'} to {local_filename}")
                 logger.info("All files downloaded successfully")
             except Exception as e:
                 logger.error(f"Error: {e}")
     except Exception as e:
         logger.error(f"Error: {e}")
         sys.exit(1)
+
 
 
         
