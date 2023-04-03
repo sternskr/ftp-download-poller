@@ -47,12 +47,14 @@ def remove_tmp_files(destination_dir):
             
 # Define a recursive function to list all files and directories in the given remote directory and its subdirectories
 def list_files_recursive(sftp, remote_dir):
+    logger.info(f"Listing files in {remote_dir}")
     files = []
     for file in sftp.listdir_attr(remote_dir):
         if file.st_mode & stat.S_IFDIR:
             # If the item is a directory, call this function recursively with the directory path
             files += list_files_recursive(sftp, os.path.join(remote_dir, file.filename))
         else:
+            logger.info(f"Found file: {file.filename}")
             # If the item is a file, add it to the list
             file.filename = os.path.join(remote_dir, file.filename)
             files.append(file)
