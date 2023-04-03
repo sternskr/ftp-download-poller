@@ -103,7 +103,9 @@ def download_files():
                 sftp.chdir(REMOTE_DIR)
                 # Get a list of all files and directories in the remote directory
                 files = sftp.listdir_attr()
-                logger.info(f"Found {len(files)} files on the SFTP server.")
+                logger.info(f"Found {len(files)} files and directories on the SFTP server:")
+                for file in files:
+                    logger.info(f"- {file.filename} ({stat.filemode(file.st_mode)})")
                 logger.info(f"Remote directory: {REMOTE_DIR}")
                 logger.info(f"Destination directory: {DESTINATION_DIR}")
 
@@ -128,9 +130,6 @@ def download_files():
     except Exception as e:
         logger.error(f"Error: {e}")
         sys.exit(1)
-
-
-
         
 # Run the download_files function once at the beginning
 if __name__ == '__main__':
