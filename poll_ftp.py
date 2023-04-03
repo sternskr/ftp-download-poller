@@ -39,6 +39,21 @@ def create_destination_dir(destination_dir, worker_name):
         os.chmod(destination_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
         logger.info(f"{worker_name} Created destination directory: {destination_dir}")
 
+#removes any empty directories at the given path & sftp
+def cleanup_empty_directories(sftp, remote_dir):
+    """
+    Recursively check if a directory is empty and delete it if it is.
+    """
+    files = sftp.listdir(remote_dir)
+    if len(files) == 0:
+        sftp.rmdir(remote_dir)
+        logger.info(f"Deleted remote directory: {remote_dir}")
+    else:
+        for file in files:
+            filepath = os.path.join(remote_dir, file)
+            if sftp.stat(filepath).st_mode & stat.S_IFDIR:
+                cleanup_empty_directories(sftp, filepath)
+
 # Define a function to remove any temporary files in the destination directory
 def remove_tmp_files(destination_dir):
     logger.info("Removing temporary files...")
@@ -128,6 +143,9 @@ def download_files():
                             # Submit a download task to the thread pool for each file, passing the UUID as an argument
                             executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file.filename, DESTINATION_DIR, worker_name)
                 logger.info("All files downloaded successfully")
+                
+                logger.info("Cleaning any leftover empty dirs...")
+                cleanup_empty_directories(sftp, REMOTE_DIR)
             except Exception as e:
                 logger.error(f"Error: {e}")
     except Exception as e:
