@@ -47,9 +47,12 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
     local_filename = os.path.join(destination_dir, file)
     # Connect to the FTP server and download the file using the download_file function
     with FTP(server) as ftp:
-        ftp.login(user=username, passwd=password)
-        ftp.cwd(remote_dir)
-        download_file(ftp, file, local_filename + '.tmp')
+        try:
+            ftp.login(user=username, passwd=password)
+            ftp.cwd(remote_dir)
+            download_file(ftp, file, local_filename + '.tmp')
+        except Exception as e:
+            logger.error(f"Error downloading {filename}: {e}")
 
 # Define the main function that downloads all files from the FTP server
 def download_files():
@@ -57,28 +60,31 @@ def download_files():
         logger.info("Connecting to FTP server...")
         # Connect to the FTP server and change to the remote directory
         with FTP(SERVER) as ftp:
-            ftp.login(user=USERNAME, passwd=PASSWORD)
-            ftp.cwd(REMOTE_DIR)
-            # Get a list of all files in the remote directory
-            files = ftp.nlst()
-            logger.info(f"Found {len(files)} files on the FTP server.")
-            # Remove any temporary files from the destination directory
-            remove_tmp_files(DESTINATION_DIR)
-            # Use a thread pool to download up to 5 files concurrently
-            with ThreadPoolExecutor(max_workers=5) as executor:
+            try:
+                ftp.login(user=USERNAME, passwd=PASSWORD)
+                ftp.cwd(REMOTE_DIR)
+                # Get a list of all files in the remote directory
+                files = ftp.nlst()
+                logger.info(f"Found {len(files)} files on the FTP server.")
+                # Remove any temporary files from the destination directory
+                remove_tmp_files(DESTINATION_DIR)
+                # Use a thread pool to download up to 5 files concurrently
+                with ThreadPoolExecutor(max_workers=5) as executor:
+                    for file in files:
+                        # Submit a download task to the thread pool for each file
+                        executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file, DESTINATION_DIR)
+                # Rename any temporary files to their final names once they have been downloaded completely
                 for file in files:
-                    # Submit a download task to the thread pool for each file
-                    executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file, DESTINATION_DIR)
-            # Rename any temporary files to their final names once they have been downloaded completely
-            for file in files:
-                local_filename = os.path.join(DESTINATION_DIR, os.path.basename(file))
-                os.rename(local_filename + '.tmp', local_filename)
-                logger.info(f"Renamed {local_filename + '.tmp'} to {local_filename}")
-            logger.info("All files downloaded successfully")
+                    local_filename = os.path.join(DESTINATION_DIR, os.path.basename(file))
+                    os.rename(local_filename + '.tmp', local_filename)
+                    logger.info(f"Renamed {local_filename + '.tmp'} to {local_filename}")
+                logger.info("All files downloaded successfully")
+            except Exception as e:
+                logger.error(f"Error: {e}")
     except Exception as e:
         logger.error(f"Error: {e}")
         sys.exit(1)
-
+        
 # Run the download_files function once at the beginning
 if __name__ == '__main__':
     download_files()
