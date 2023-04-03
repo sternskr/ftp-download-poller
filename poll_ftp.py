@@ -5,8 +5,8 @@ import schedule
 import time
 import logging
 import paramiko
-import uuid
 import stat
+import secrets
 
 # Set up default values for environment variables
 SERVER = os.getenv('FTP_SERVER', '')
@@ -32,10 +32,10 @@ logger.info(f"REMOTE_DIR: {REMOTE_DIR}")
 logger.info(f"DESTINATION_DIR: {DESTINATION_DIR}")
 
 #Create the dir if it doesn't exist already
-def create_destination_dir(destination_dir, task_uuid):
+def create_destination_dir(destination_dir, worker_name):
     if not os.path.exists(destination_dir):
         os.makedirs(destination_dir)
-        logger.info(f"Task {task_uuid} Created destination directory: {destination_dir}")
+        logger.info(f"{worker_name} Created destination directory: {destination_dir}")
 
 # Define a function to remove any temporary files in the destination directory
 def remove_tmp_files(destination_dir):
@@ -61,14 +61,14 @@ def list_files_recursive(sftp, remote_dir):
     return files
 
 # Define a function to download a single file from the SFTP server
-def download_file(sftp, filename, local_filename, task_uuid):
-    logger.info(f"Task {task_uuid}: Downloading {filename}...")
+def download_file(sftp, filename, local_filename, worker_name):
+    logger.info(f"{worker_name}: Downloading {filename}...")
     # Use SFTP's get method to download the file and write it to a local file
     sftp.get(filename, local_filename)
-    logger.info(f"Task {task_uuid}: Downloaded {filename}")
+    logger.info(f"{worker_name}: Downloaded {filename}")
 
 # Define a function to download a single file using a separate SFTP connection
-def download_file_worker(server, username, password, remote_dir, file, destination_dir, task_uuid):
+def download_file_worker(server, username, password, remote_dir, file, destination_dir, worker_name):
     # Remove the REMOTE_DIR part of the path from the file name
     file_tmp = file.replace(remote_dir, '', 1).lstrip('/')
     # Generate the local filename for the downloaded file
@@ -76,7 +76,7 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
 
     # Create necessary directories for the file
     local_file_directory = os.path.dirname(local_filename)
-    create_destination_dir(local_file_directory, task_uuid)
+    create_destination_dir(local_file_directory, worker_name)
 
     # Connect to the SFTP server and download the file using the download_file function
     with paramiko.Transport((server, 22)) as transport:
@@ -84,13 +84,13 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
             transport.connect(username=username, password=password)
             sftp = paramiko.SFTPClient.from_transport(transport)
             sftp.chdir(remote_dir)
-            download_file(sftp, file, local_filename + '.tmp', task_uuid)
+            download_file(sftp, file, local_filename + '.tmp', worker_name)
             os.rename(local_filename + '.tmp', local_filename)
-            logger.info(f"Task {task_uuid}: Renamed {local_filename + '.tmp'} to {local_filename}")
+            logger.info(f"{worker_name}: Renamed {local_filename + '.tmp'} to {local_filename}")
             sftp.remove(file)  # Delete the file on the server after downloading
-            logger.info(f"Task {task_uuid}: Deleted {file} from the server")
+            logger.info(f"{worker_name}: Deleted {file} from the server")
         except Exception as e:
-            logger.error(f"Task {task_uuid}: Error downloading {file}: {e}")
+            logger.error(f"{worker_name}: Error downloading {file}: {e}")
 
 # Define the main function that downloads all files from the FTP server
 def download_files():
@@ -120,9 +120,9 @@ def download_files():
                         # Check if the item in the list is a file or a directory
                         if not file.st_mode & stat.S_IFDIR:
                             # Generate a UUID for each file download task
-                            task_uuid = str(uuid.uuid4())
+                            worker_name = str(secrets.token_hex(4))
                             # Submit a download task to the thread pool for each file, passing the UUID as an argument
-                            executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file.filename, DESTINATION_DIR, task_uuid)
+                            executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file.filename, DESTINATION_DIR, worker_name)
                 logger.info("All files downloaded successfully")
             except Exception as e:
                 logger.error(f"Error: {e}")
