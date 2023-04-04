@@ -37,7 +37,7 @@ logger.info(f"DELETE_FILES: {DELETE_FILES}")
 
 
 # Connect to the TinyDB database
-db = TinyDB('downloaded_files.json')
+db = TinyDB('/download/download_tracking/downloaded_files.json')
 # Create a threading lock object
 db_lock = threading.Lock()
 
