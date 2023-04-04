@@ -7,6 +7,8 @@ import logging
 import paramiko
 import stat
 import secrets
+import threading
+from tinydb import TinyDB, Query
 
 # Set up default values for environment variables
 SERVER = os.getenv('FTP_SERVER', '')
@@ -14,6 +16,7 @@ USERNAME = os.getenv('FTP_USERNAME', '')
 PASSWORD = os.getenv('FTP_PASSWORD', '')
 REMOTE_DIR = os.getenv('FTP_DIR', '/remote')
 DESTINATION_DIR = '/download'
+DELETE_FILES = os.getenv('DELETE_FILES', 'False').lower() == 'true'
 
 # Set up logging
 logger = logging.getLogger()
@@ -30,6 +33,48 @@ logger.info(f"USERNAME: {USERNAME}")
 logger.info(f"PASSWORD: {PASSWORD}")
 logger.info(f"REMOTE_DIR: {REMOTE_DIR}")
 logger.info(f"DESTINATION_DIR: {DESTINATION_DIR}")
+logger.info(f"DELETE_FILES: {DELETE_FILES}")
+
+
+# Connect to the TinyDB database
+db = TinyDB('downloaded_files.json')
+# Create a threading lock object
+db_lock = threading.Lock()
+
+# Define a function to check if a file has already been downloaded
+def is_file_downloaded(filename):
+    """
+    Check if a file has already been downloaded by checking the downloaded_files.json file.
+    """
+    # Acquire the lock before accessing the database
+    db_lock.acquire()
+    try:
+        # Check if the filename exists in the database
+        file_query = Query()
+        result = db.search(file_query.filename == filename)
+        if len(result) > 0:
+            logger.info(f"{filename} has already been downloaded")
+            return True
+        else:
+            return False
+    finally:
+        # Release the lock after accessing the database
+        db_lock.release()
+
+# Define a function to add a downloaded file to the TinyDB database
+def add_downloaded_file(filename, worker_name):
+    """
+    Add a downloaded file to the downloaded_files.json database.
+    """
+    # Acquire the lock before accessing the database
+    db_lock.acquire()
+    try:
+        # Add the filename to the database
+        db.insert({'filename': filename})
+        logger.info(f"Worker {worker_name} Added {filename} to the downloaded_files.json database")
+    finally:
+        # Release the lock after accessing the database
+        db_lock.release()
 
 #Create the dir if it doesn't exist already
 def create_destination_dir(destination_dir, worker_name):
@@ -98,16 +143,22 @@ def download_file(sftp, filename, local_filename, worker_name):
     os.chmod(local_filename, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
     logger.info(f"{worker_name}: Downloaded {filename}")
 
-# Define a function to download a single file using a separate SFTP connection
-def download_file_worker(server, username, password, remote_dir, file, destination_dir, worker_name):
+def generate_local_filename(file_path, remote_dir, destination_dir):
     # Remove the REMOTE_DIR part of the path from the file name
-    file_tmp = file.replace(remote_dir, '', 1).lstrip('/')
+    file_tmp = file_path.replace(remote_dir, '', 1).lstrip('/')
     # Generate the local filename for the downloaded file
     local_filename = os.path.join(destination_dir, file_tmp)
+    return local_filename
 
-    # Create necessary directories for the file
-    local_file_directory = os.path.dirname(local_filename)
-    create_destination_dir(local_file_directory, worker_name)
+def file_download_handler(sftp, file_path, local_filename, worker_name):
+    download_file(sftp, file_path, local_filename + '.tmp', worker_name)
+    os.rename(local_filename + '.tmp', local_filename)
+    logger.info(f"{worker_name}: Renamed {local_filename + '.tmp'} to {local_filename}")
+    add_downloaded_file(file_path, worker_name)
+
+def download_file_worker(server, username, password, remote_dir, file_path, destination_dir, worker_name):
+    local_filename = generate_local_filename(file_path, remote_dir, destination_dir)
+    create_destination_dir(os.path.dirname(local_filename), worker_name)
 
     # Connect to the SFTP server and download the file using the download_file function
     with paramiko.Transport((server, 22)) as transport:
@@ -115,13 +166,13 @@ def download_file_worker(server, username, password, remote_dir, file, destinati
             transport.connect(username=username, password=password)
             sftp = paramiko.SFTPClient.from_transport(transport)
             sftp.chdir(remote_dir)
-            download_file(sftp, file, local_filename + '.tmp', worker_name)
-            os.rename(local_filename + '.tmp', local_filename)
-            logger.info(f"{worker_name}: Renamed {local_filename + '.tmp'} to {local_filename}")
-            sftp.remove(file)  # Delete the file on the server after downloading
-            logger.info(f"{worker_name}: Deleted {file} from the server")
+            file_download_handler(sftp, file_path, local_filename, worker_name)
+            if DELETE_FILES:
+                sftp.remove(file_path)  # Delete the file on the server after downloading
+                logger.info(f"{worker_name}: Deleted {file_path} from the server")
         except Exception as e:
-            logger.error(f"{worker_name}: Error downloading {file}: {e}")
+            logger.error(f"{worker_name}: Error downloading {file_path}: {e}")
+
 
 # Define the main function that downloads all files from the FTP server
 def download_files():
@@ -148,6 +199,9 @@ def download_files():
                 # Use a thread pool to download up to 5 files concurrently
                 with ThreadPoolExecutor(max_workers=5) as executor:
                     for file in files:
+                        # Check if the file is already downloaded
+                        if is_file_downloaded(file.filename):
+                            continue  # Skip the file if it is already downloaded
                         # Check if the item in the list is a file or a directory
                         if not file.st_mode & stat.S_IFDIR:
                             # Generate a UUID for each file download task
@@ -155,9 +209,9 @@ def download_files():
                             # Submit a download task to the thread pool for each file, passing the UUID as an argument
                             executor.submit(download_file_worker, SERVER, USERNAME, PASSWORD, REMOTE_DIR, file.filename, DESTINATION_DIR, worker_name)
                 logger.info("All files downloaded successfully")
-                
-                logger.info("Cleaning any leftover empty dirs...")
-                cleanup_empty_directories(sftp, REMOTE_DIR)
+                if DELETE_FILES:
+                    logger.info("Cleaning any leftover empty dirs...")
+                    cleanup_empty_directories(sftp, REMOTE_DIR)
                 logger.info("Done")
             except Exception as e:
                 logger.error(f"Error: {e}")

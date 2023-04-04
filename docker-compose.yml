@@ -9,5 +9,6 @@ services:
       - FTP_USERNAME=username
       - FTP_PASSWORD=password
       - FTP_DIR=/remote/directory
+      - DELETE_FILES=false
     volumes:
       - /your/local/download/path:/download
