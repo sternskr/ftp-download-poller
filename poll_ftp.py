@@ -35,7 +35,29 @@ logger.info(f"REMOTE_DIR: {REMOTE_DIR}")
 logger.info(f"DESTINATION_DIR: {DESTINATION_DIR}")
 logger.info(f"DELETE_FILES: {DELETE_FILES}")
 
+#Create the dir if it doesn't exist already
+def create_destination_dir(destination_dir, worker_name):
+    if not os.path.exists(destination_dir):
+        os.makedirs(destination_dir)
+        # Set permissions on all parent directories
+        parent_dir = os.path.dirname(destination_dir)
+        while parent_dir != '/':
+            os.chmod(parent_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+            parent_dir = os.path.dirname(parent_dir)
+        # Set permissions on the destination directory
+        os.chmod(destination_dir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
+        logger.info(f"{worker_name} Created destination directory: {destination_dir}")
 
+sub_dir = 'DOWNLOAD_TRACKER'
+db_name = 'download_history.json'
+
+# Create the directory structure if it does not exist
+directory = os.path.join(DESTINATION_DIR, sub_dir)
+create_destination_dir(directory, 'Main')
+
+# Initialize the database
+db_path = os.path.join(directory, db_name)
+db = TinyDB(db_path)
 # Connect to the TinyDB database
 db = TinyDB('/download/download_tracking/downloaded_files.json')
 # Create a threading lock object
@@ -71,7 +93,7 @@ def add_downloaded_file(filename, worker_name):
     try:
         # Add the filename to the database
         db.insert({'filename': filename})
-        logger.info(f"Worker {worker_name} Added {filename} to the downloaded_files.json database")
+        logger.info(f"{worker_name} Added {filename} to the downloaded_files.json database")
     finally:
         # Release the lock after accessing the database
         db_lock.release()
@@ -172,7 +194,6 @@ def download_file_worker(server, username, password, remote_dir, file_path, dest
                 logger.info(f"{worker_name}: Deleted {file_path} from the server")
         except Exception as e:
             logger.error(f"{worker_name}: Error downloading {file_path}: {e}")
-
 
 # Define the main function that downloads all files from the FTP server
 def download_files():
