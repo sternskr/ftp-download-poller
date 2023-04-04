@@ -58,8 +58,6 @@ create_destination_dir(directory, 'Main')
 # Initialize the database
 db_path = os.path.join(directory, db_name)
 db = TinyDB(db_path)
-# Connect to the TinyDB database
-db = TinyDB('/download/download_tracking/downloaded_files.json')
 # Create a threading lock object
 db_lock = threading.Lock()
 
